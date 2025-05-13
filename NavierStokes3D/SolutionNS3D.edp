@@ -1,0 +1,140 @@
+//Elise Grosjean
+//snapshots
+//uh.txt vitesse a approcher
+include "getARGV.idp" 
+load "msh3"
+load "iovtk"
+load "lapack"
+load "gmsh"
+int[int] Order = [1];
+string DataName = "Velocity";
+real H1=1;
+real H0=0.5;
+int Inlet=10;
+int ns=20;
+
+//mesh Th2=gmshload("marche.msh");
+//mesh Th22d=gmshload("ton_maillage_grossier.msh");//test_maillage_tres_grossier.msh");
+mesh Th22d=gmshload("test_maillage_grossier.msh");
+//plot(Th22d,wait=1);
+//mesh Th22d=gmshload("marche.msh");
+fespace Pl22(Th22d,P0);
+Pl22 h22 = hTriangle;
+cout << "size of mesh = " << h22[].max << endl;
+//coarse=5
+//fine=15
+//ref=30
+int nnL=max(2,5);//0);//5
+int[int] l1111 = [1, 1, 1, 1];
+int[int] l01 = [0, 1];
+int[int] l11 = [1, 1];
+//mesh3 Th2o = buildlayers(Th22d, nnL, zbound=[0., 0.12], labelmid=l11, labelup=l01, labeldown=l01);
+mesh3 Th2 = buildlayers(Th22d, nnL, zbound=[0., 1.], labelmid=l11, labelup=l01, labeldown=l01);
+savevtk("th2.vtu", Th2);
+fespace Pl2(Th2,P0);
+Pl2 h2 = hTriangle;
+cout << "size of mesh 2 = " << h2[].max << endl;
+
+macro Gradient(u) [dx(u), dy(u),dz(u)] //
+macro Divergence(ux, uy,uz) (dx(ux) + dy(uy)+dz(uz)) //
+macro UgradV(ux,uy,uz,vx,vy,vz) [ [ux,uy,uz]'*[dx(vx),dy(vx),dz(vx)] , [ux,uy,uz]'*[dx(vy),dy(vy),dz(vy)],  [ux,uy,uz]'*[dx(vz),dy(vz),dz(vz)]]// EOM
+
+
+int i,j,k;
+
+real Re=getARGV("-re", 1.);//number of modes 
+real nu=1./Re;
+
+//Function inlet
+func uIn = 4./H0/H0*(H1-y)*(y-H1+H0)*4*(1-z)*z;
+
+real arrns = 1e-9;
+
+fespace Vh2(Th2,[P2,P2,P2]);
+fespace Ph2(Th2,P1);
+Vh2 [usnshh,vsnshh,wsnshh]; //ns Vecteurs vitesse [u1,u2]
+
+Vh2  [ux2, uy2,uz2], [vx2, vy2,vz2], [ux12, uy12,uz12], [dux2, duy2,duz2];
+Ph2 p2, q2, dp2;
+Ph2 testu;
+
+
+macro nsSteady2(nu) {
+ int n;
+ real err=0;
+ S2;
+ 
+/* Newton Loop  */
+ for(n=0; n< 10; n++) {
+   LinNS2;
+   dux2[] = ux12[] - ux2[];
+   duy2[] = uy12[] - uy2[];
+   duz2[] = uz12[] - uz2[];	
+   err = sqrt(int3d(Th2)(Gradient(dux2)'*Gradient(dux2)+Gradient(duy2)'*Gradient(duy2)+Gradient(duz2)'*Gradient(duz2))) /
+     sqrt(int3d(Th2)(Gradient(ux2)'*Gradient(ux2) + Gradient(uy2)'*Gradient(uy2)+Gradient(uz2)'*Gradient(uz2)));
+   ux2[] = ux12[];
+   uy2[] = uy12[];
+   uz2[]=uz12[];
+   
+    cout << err << " / " << arrns << endl;
+   cout.flush;
+   if(err < arrns) break;
+ }
+ /* Newton loop has not converged */
+ if(err > arrns) {
+   cout << "NS Warning : non convergence : err = " << err << " / eps = " << arrns << endl;
+ }
+
+} //EOF
+
+
+//Problem
+problem S2 ([ux2, uy2,uz2, p2],[vx2, vy2, vz2,q2])//,solver="sparsesolver")
+	= int3d(Th2)(nu * (Gradient(ux2)' * Gradient(vx2)
+		+ Gradient(uy2)' * Gradient(vy2)	+ Gradient(uz2)' * Gradient(vz2))
+		- p2 * Divergence(vx2, vy2,vz2)
+		- Divergence(ux2, uy2,uz2) * q2)
+	+ on(Inlet, ux2=uIn, uy2=0.,uz2=0.)
+	+ on(1,20,40, ux2=0., uy2=0.,uz2=0.);
+
+problem LinNS2([ux12,uy12,uz12,dp2],[vx2,vy2,vz2,q2])= //,solver="sparsesolver")=
+     int3d(Th2)(nu*(Gradient(ux12)'*Gradient(vx2)
+               +   Gradient(uy12)'*Gradient(vy2)  +   Gradient(uz12)'*Gradient(vz2))
+	       + UgradV(ux12,uy12,uz12, ux2, uy2,uz2)'*[vx2,vy2,vz2]
+	       + UgradV(ux2,uy2,uz2,ux12,uy12,uz12)'*[vx2,vy2,vz2]
+	       - Divergence(ux12,uy12,uz12)*q2 - Divergence(vx2,vy2,vz2)*dp2)
+     -int3d(Th2)(UgradV(ux2,uy2,uz2, ux2, uy2,uz2)'*[vx2,vy2,vz2])
+     +on(Inlet, ux12=uIn, uy12=0.,uz12=0.)
+     +on(1,20,40, ux12=0.,uy12=0.,uz12=0.);//1=cote, 20=bas,40=haut
+
+
+int index=getARGV("-ind", 1);
+cout<<"index"<< index<<endl;
+for (j=index;j<index+1;j++){
+	cout<<"Re"<< Re<<endl;
+	nsSteady2(nu);
+	//plot(wait=true,cmm="[uh,vh]"+j,value=1,fill=1,[ux2,uy2]);
+	[usnshh,vsnshh,wsnshh]=[ux2,uy2,uz2];
+	savevtk("snapshot_"+j+".vtu", Th2, [usnshh,vsnshh,wsnshh], dataname=DataName, order=Order);
+	Re+=15;nu=1./Re;
+}
+
+////OFFLINE////////
+
+//varf vGamma (u, v) = on(Inlet, u=1);
+//real[int] onGamma = vGamma(0, Ph2);
+//Ph2 ub=uIn;
+
+//testu[] = onGamma ? ub[]:0;
+
+///********************* LECTURE DES VITESSES *******************///
+
+//plot(coef=0.2,wait=true,[usnsh[i],vsnsh[i]],cmm=i ,value=1,fill=1);//,ps="solfinal.ps");
+//savevtk("Ltotuex_"+0+".vtu", Th, [usnsh[i],vsnsh[i]], dataname=DataName, order=Order);
+//savevtk("Ltotuapp_"+0+".vtu", Th2, [usnshh[i],vsnshh[i]], dataname=DataName, order=Order);
+
+
+
+//savevtk("Ltotuex_"+0+".vtu", Th2, [usnshh[i],vsnshh[i],wsnshh[i]], dataname=DataName, order=Order);
+//savevtk("Ltotuex_"+0+".vtu", Th2, [testu,testu,testu], dataname=DataName, order=Order);
+cout<<" Re "<<Re<<endl;

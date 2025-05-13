@@ -1,0 +1,190 @@
+//Elise Grosjean
+//snapshots
+//uh.txt vitesse a approcher
+include "getARGV.idp" 
+load "iovtk"
+load "lapack"
+load "gmsh"
+int[int] Order = [1];
+string DataName = "Velocity";
+real H1=1;
+real H0=0.5;
+int Inlet=10;
+int ns=1;
+
+//mesh Th2=gmshload("marche.msh");
+mesh Th2=gmshload("test_maillage_grossier.msh");
+//mesh Th2=vtkload("test_maillage_grossier.vtk");
+
+/*fespace Pl(Th,P0);
+Pl h = hTriangle;
+cout << "size of mesh 1 = " << h[].max << endl;
+*/
+
+fespace Pl2(Th2,P0);
+Pl2 h2 = hTriangle;
+cout << "size of mesh 2 = " << h2[].max << endl;
+
+/*
+fespace Ph(Th, P1);
+fespace Vh(Th,[P2,P2]);
+Vh  [ux, uy], [vx, vy], [ux1, uy1], [dux, duy];
+Ph p, q, dp;
+*/
+macro Gradient(u) [dx(u), dy(u)] //
+macro Divergence(ux, uy) (dx(ux) + dy(uy)) //
+macro UgradV(ux,uy,vx,vy) [ [ux,uy]'*[dx(vx),dy(vx)] , [ux,uy]'*[dx(vy),dy(vy)] ]// EOM
+
+
+int i,j,k;
+real Re=getARGV("-re", 1.);//number of modes 
+//real Re=52;
+real nu=1./Re;
+
+//Function inlet
+func uIn = 4./H0/H0*(H1-y)*(y-H1+H0);
+
+//Vh[int] [usnsh,vsnsh](ns); //ns Vecteurs vitesse [u1,u2]
+
+
+real arrns = 1e-9;
+/*
+macro nsSteady() {
+ int n;
+ real err=0;
+ S;
+
+ for(n=0; n< 15; n++) {
+   LinNS;
+   dux[] = ux1[] - ux[];
+   duy[] = uy1[] - uy[];
+   err = sqrt(int2d(Th)(Gradient(dux)'*Gradient(dux)+Gradient(duy)'*Gradient(duy))) /
+     sqrt(int2d(Th)(Gradient(ux)'*Gradient(ux) + Gradient(uy)'*Gradient(uy)));
+   ux[] = ux1[];
+   uy[] = uy1[];
+   cout << err << " / " << arrns << endl;
+   cout.flush;
+   if(err < arrns) break;
+ }
+
+ if(err > arrns) {
+   cout << "NS Warning : non convergence : err = " << err << " / eps = " << arrns << endl;
+ }
+
+} //EOF
+
+
+
+//Problem
+problem S ([ux, uy, p],[vx, vy, q])
+	= int2d(Th)(nu * (Gradient(ux)' * Gradient(vx)
+		+ Gradient(uy)' * Gradient(vy))
+		- p * Divergence(vx, vy)
+		- Divergence(ux, uy) * q)
+	+ on(Inlet, ux=uIn, uy=0.)
+	+ on(20,40, ux=0., uy=0.);
+
+problem LinNS([ux1,uy1,dp],[vx,vy,q]) =
+     int2d(Th)(nu*(Gradient(ux1)'*Gradient(vx)
+               +   Gradient(uy1)'*Gradient(vy))
+	       + UgradV(ux1,uy1, ux, uy)'*[vx,vy]
+	       + UgradV(ux,uy,ux1,uy1)'*[vx,vy]
+	       - Divergence(ux1,uy1)*q - Divergence(vx,vy)*dp)
+     -int2d(Th)(UgradV(ux,uy, ux, uy)'*[vx,vy])
+     +on(Inlet, ux1=uIn, uy1=0.)
+     +on(20,40, ux1=0.,uy1=0.);
+
+
+for (j=0;j<1;j++){
+	nsSteady;
+	plot(wait=true,cmm="[u,v]"+j,fill=1,value=1,[ux,uy]);//,ps="solfinal.ps");
+	[usnsh[j],vsnsh[j]]=[ux,uy];
+
+}
+*/
+//cout<<"Re fin = "<<Re<<endl;  
+
+fespace Vh2(Th2,[P2,P2]);
+fespace Ph2(Th2,P1);
+Vh2[int] [usnshh,vsnshh](ns); //ns Vecteurs vitesse [u1,u2]
+//Re=30;nu=1./Re;
+Vh2  [ux2, uy2], [vx2, vy2], [ux12, uy12], [dux2, duy2];
+Ph2 p2, q2, dp2;
+
+macro nsSteady2() {
+ int n;
+ real err=0;
+ S2;
+ 
+/* Newton Loop  */
+ for(n=0; n< 15; n++) {
+   LinNS2;
+   dux2[] = ux12[] - ux2[];
+   duy2[] = uy12[] - uy2[];
+   err = sqrt(int2d(Th2)(Gradient(dux2)'*Gradient(dux2)+Gradient(duy2)'*Gradient(duy2))) /
+     sqrt(int2d(Th2)(Gradient(ux2)'*Gradient(ux2) + Gradient(uy2)'*Gradient(uy2)));
+   ux2[] = ux12[];
+   uy2[] = uy12[];
+   cout << err << " / " << arrns << endl;
+   cout.flush;
+   if(err < arrns) break;
+ }
+ /* Newton loop has not converged */
+ if(err > arrns) {
+   cout << "NS Warning : non convergence : err = " << err << " / eps = " << arrns << endl;
+ }
+
+} //EOF
+
+
+//Problem
+problem S2 ([ux2, uy2, p2],[vx2, vy2, q2])
+	= int2d(Th2)(nu * (Gradient(ux2)' * Gradient(vx2)
+		+ Gradient(uy2)' * Gradient(vy2))
+		- p2 * Divergence(vx2, vy2)
+		- Divergence(ux2, uy2) * q2)
+	+ on(Inlet, ux2=uIn, uy2=0.)
+	+ on(20,40, ux2=0., uy2=0.);
+
+problem LinNS2([ux12,uy12,dp2],[vx2,vy2,q2]) =
+     int2d(Th2)(nu*(Gradient(ux12)'*Gradient(vx2)
+               +   Gradient(uy12)'*Gradient(vy2))
+	       + UgradV(ux12,uy12, ux2, uy2)'*[vx2,vy2]
+	       + UgradV(ux2,uy2,ux12,uy12)'*[vx2,vy2]
+	       - Divergence(ux12,uy12)*q2 - Divergence(vx2,vy2)*dp2)
+     -int2d(Th2)(UgradV(ux2,uy2, ux2, uy2)'*[vx2,vy2])
+     +on(Inlet, ux12=uIn, uy12=0.)
+     +on(20,40, ux12=0.,uy12=0.);
+
+
+
+/*for (j=0;j<1;j++){
+	nsSteady2;
+	plot(wait=true,cmm="[uh,vh]"+j,value=1,fill=1,[ux2,uy2]);//,ps="solfinal.ps");
+	[usnshh[j],vsnshh[j]]=[ux2,uy2];
+}*/
+
+
+
+int index=getARGV("-ind", 1);
+cout<<"index"<< index<<endl;
+for (j=index;j<index+1;j++){
+	cout<<"Re"<< Re<<endl;
+	nsSteady2;
+	//plot(wait=true,cmm="[uh,vh]"+j,value=1,fill=1,[ux2,uy2]);
+	[usnshh[j],vsnshh[j]]=[ux2,uy2];
+	savevtk("snapshot_"+j+".vtu", Th2, [usnshh,vsnshh], dataname=DataName, order=Order);
+	Re+=15;nu=1./Re;
+}
+
+
+
+////OFFLINE////////
+
+///********************* LECTURE DES VITESSES *******************///
+
+//plot(coef=0.2,wait=true,[usnsh[i],vsnsh[i]],cmm=i ,value=1,fill=1);//,ps="solfinal.ps");
+//savevtk("Ltotuex_"+0+".vtu", Th, [usnsh[i],vsnsh[i]], dataname=DataName, order=Order);
+//savevtk("Ltotuapp_"+0+".vtu", Th2, [usnshh[i],vsnshh[i]], dataname=DataName, order=Order);
+//savevtk("Ltotuex_"+0+".vtu", Th2, [usnshh[i],vsnshh[i]], dataname=DataName, order=Order);
+cout<<" Re "<<Re<<endl;
