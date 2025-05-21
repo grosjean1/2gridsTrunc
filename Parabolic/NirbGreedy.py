@@ -245,9 +245,9 @@ l2ScalarProducMatrixCoarse = FT.ComputeL2ScalarProducMatrix( mesh2, nbeOfCompone
 #h1ScalarProducMatrix = FT.ComputeH10ScalarProductMatrix(mesh, nbeOfComponentsPrimal)
 
 ##### ALGO (full) GREEDY
-reducedOrderBasisPhi,nev2,_=GD.greedy_algorithm(snapshots,TF,l2ScalarProducMatrix,nev)
-reducedOrderBasisPhiCoarse,nev3,_=GD.greedy_algorithm(snapshotsH,TF,l2ScalarProducMatrixCoarse,nev)
-
+reducedOrderBasisPhiCoarse,nev3,GlobalIndices=GD.greedy_algorithm(snapshotsH,TF,l2ScalarProducMatrixCoarse,nev)
+reducedOrderBasisPhi,nev2=GD.GreedyNew(snapshots,TF,l2ScalarProducMatrix,GlobalIndices,NumberOfModes=nev)
+#reducedOrderBasisPhi,nev2,_=GD.greedy_algorithm(snapshots,TF,l2ScalarProducMatrix,nev)
 assert(nev2==nev3)
 
 print("Number of modes after greedyPhi",nev2)
