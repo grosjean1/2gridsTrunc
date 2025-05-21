@@ -34,16 +34,12 @@ from scipy.sparse import coo_matrix
 """          Initialization                              """
 ############################################################
 onlineParameter1=str(sys.argv[5])
-onlineParameter2="1"#str(sys.argv[6])
-print( "online Parameter", onlineParameter1,' ', onlineParameter2)
+print( "online Parameter", onlineParameter1)
 ## Directories
 currentFolder=os.getcwd()
 dataFolder=currentFolder
-FinedataFolderU=osp.join(dataFolder,'FineSnapshots')#+sys.argv[2]) #for fine snapshots
-#CoarsedataFolderU=osp.join(dataFolder,'CoarseSnapshots')#+sys.argv[3]+'/'+sys.argv[4]) #for coarse snapshots
-CoarsedataFolderU=osp.join(dataFolder,'CoarseSnapshotsTrunc3')#+sys.argv[3]+'/'+sys.argv[4]) #for coarse snapshots
-FinedataFolder=FinedataFolderU #osp.join(dataFolder,'FineSnapshotsPhi/'+sys.argv[2]) #for fine snapshots
-CoarsedataFolder=CoarsedataFolderU#osp.join(dataFolder,'CoarseSnapshotsPhi/'+sys.argv[3]+'/'+sys.argv[4]) #for coarse snapshots
+FinedataFolder=osp.join(dataFolder,'FineSnapshots')#+sys.argv[2]) #for fine snapshots
+CoarsedataFolder=osp.join(dataFolder,'CoarseSnapshotsTrunc3')
 print("fine folder: ", FinedataFolder)
 print("coarse folder: ", CoarsedataFolder)
 
@@ -53,23 +49,18 @@ count1=0
 for _, folder, _ in os.walk(FinedataFolder): #number of folders in FineData
     count1 += len(folder)
 
-ns=6 # 19-1#count1-1 #-1 because of the online parameter not included in offline snapshots
+ns=6 
 print("Number of snapshots: ",ns)
-#ns=18
 
-
-nev=int(sys.argv[1])   #nombre de modes
-
+nev=int(sys.argv[1])   #number of modes
 time=0.0 #init
-dimension=3 #2D
+dimension=3 #3D
            
-TF=1#len([name for name in os.listdir(FinedataFolder+"/1-1/")])
+TF=1
 print("Number of fine time steps: ",TF)
-
-TG=1#len([name for name in os.listdir(CoarsedataFolder+"/1-1/")])
+TG=1
 print("Number of coarse time steps: ",TG)
 
-    
 
 """
 -------------------
@@ -79,10 +70,10 @@ print("Number of coarse time steps: ",TG)
 
 meshFileName = FinedataFolder + "/Snapshot_1.vtu";
 mesh=MR.Readmesh(meshFileName)
-#mesh.nodes= mesh.nodes[:,:2] #2D
-
+#mesh.nodes= mesh.nodes[:,:2] # in case 2D
 print("Fine mesh defined in " + meshFileName + " has been read")
-nbeOfComponentsPrimal = 3 # 1 field 
+
+nbeOfComponentsPrimal = 3 # 1 field, 3 components 
 numberOfNodes = mesh.GetNumberOfNodes()
 print("DoF fine mesh ", numberOfNodes)
 """
@@ -120,41 +111,20 @@ Operator=coo_matrix((data, (row, cols)), shape=(nbtp , inputnodes.shape[0]))
 ------------------- 
 """
 
-parameters=[]
-#parameters=['0.5','1','1.5','2','2.5','3','3.5','4','4.5','5','5.5','6','6.5','7','7.5','8','8.5','9','9.5']
 parameters=['0','1','2','3','4','5']
-
-
-#for i in range(1,ns+2):
-#    if(float(0.5*i)%1>1e-3):
-#        parameters.append(str(0.5*i))
-#    else:
-#        parameters.append(str(int(0.5*i)))
-
-#print("param:",parameters)
-#parameters.remove(onlineParameter) #online parameter mu=1
 print("parameters :",parameters)
-
 
 snapshots=[]
 
 for e,i in enumerate(parameters):
-    #snapshotsTime=[]
-    #for time in range(0,TF):   
     snapshot =MR.VTKReadToNp("Velocity",FinedataFolder+"/Snapshot_",i)
-
     snapshot=snapshot.flatten()
-    #    snapshotsTime.append(snapshot)
     snapshots.append(snapshot)
 
 
 snapshotsH=[]
 
 for e,i in enumerate(parameters):
-    #snapshotsHTime=[]
-    #for time in range(0,TG):
-
-
     snapshotH =MR.VTKReadToNp("Velocity",CoarsedataFolder+"/Snapshot_",i).flatten()
     snapshotsH.append(snapshotH)
     
@@ -169,13 +139,11 @@ l2ScalarProducMatrix = FT.ComputeL2ScalarProducMatrix( mesh, nbeOfComponentsPrim
 l2ScalarProducMatrixCoarse = FT.ComputeL2ScalarProducMatrix( mesh2, nbeOfComponentsPrimal)
 #h1ScalarProducMatrix = FT.ComputeH10ScalarProductMatrix(mesh, nbeOfComponentsPrimal)
 
-##### ALGO (full) GREEDY
-reducedOrderBasisPhi=GD.Greedy(snapshots,l2ScalarProducMatrix,NumberOfModes=nev) #GD.greedy_algorithm(snapshots,1,l2ScalarProducMatrix,nev)
-reducedOrderBasisPhiCoarse=GD.Greedy(snapshotsH,l2ScalarProducMatrixCoarse,NumberOfModes=nev) #GD.greedy_algorithm(snapshots,1,l2ScalarProducMatrix,nev)#greedy_algorithm(snapshotsH,1,l2ScalarProducMatrixCoarse,nev)
+##### ALGO GREEDY
+reducedOrderBasisPhiCoarse,GlobalIndices=GD.Greedy(snapshotsH,l2ScalarProducMatrixCoarse,NumberOfModes=nev) # on coarse grid...
+reducedOrderBasisPhi=GD.GreedyNew(snapshots,l2ScalarProducMatrix,GlobalIndices,NumberOfModes=nev) #on fine grid with same parameters..
 
 nev2=nev
-nev3=nev
-#assert(nev2==nev3)
 
 print("Number of modes after greedyPhi",nev2)
 ############################################################
@@ -213,46 +181,21 @@ for time in range(TF):
     RI[time,:,:]=R
 
 
-    
-############################################################
-"""          Save data for online part                   """
-############################################################
-### save reduced basis
-
-#outputNamePhi = "reducedOrderBasisPhi.pkl"
-#outputPhi = open(outputNamePhi, "wb")
-#pickle.dump(reducedOrderBasisPhi, outputPhi)
-#outputPhi.close()
-
-#OperatorOutput = "Operator.pkl"
-#outputOp=open(OperatorOutput,"wb")
-#pickle.dump(Operator, outputOp)
-#outputOp.close()
-
-#REGOutput = "Rectification.pkl"
-#outputReg=open(REGOutput,"wb")
-#pickle.dump(RI, outputReg)
-#outputReg.close()
 ############################################################
 """          Online part                                 """
 ############################################################
 
-jparam=onlineParameter2
 for iparam in [onlineParameter1]:
-
-    snapshotsHTime=[]
-    #for time in range(TG):
-
-    snapshotH =MR.VTKReadToNp("Velocity",currentFolder+"/snapshotH3ex_","H0").flatten()
+    
+    snapshotH =MR.VTKReadToNp("Velocity",currentFolder+"/snapshotH3ex_","H0").flatten() # read coarse solution 
    
     for time in range(1):    
-        R=RI[time,:,:] #nev1 nev2
+        R=RI[time,:,:] #nev1
        
         u1PT=snapshotH
         coef=np.zeros(nev2)
         CompressedSolutionUj=np.zeros(nev2)
         for j in range(nev2):
-
             CompressedSolutionUj[j]=u1PT@(l2ScalarProducMatrixCoarse@reducedOrderBasisPhiCoarse[j,:])
 
         for i in range(nev2):
@@ -261,19 +204,14 @@ for iparam in [onlineParameter1]:
                 coef[i]+=R[i,j]*CompressedSolutionUj[j]
 
         reconstructedCompressedSolution = np.dot(coef, reducedOrderBasisPhi) #rectified nirb
-        #reconstructedCompressedSolution =MR.VTKReadToNp("Velocity",currentFolder+"/snapshot_exh_","0")
-        #reconstructedCompressedSolution=MR.VTKReadToNp("Velocity",currentFolder+"/snapshotH3ex_","H0")
         ##################################################
         #######   saving solution in VTK ############
 
-        savedata=reconstructedCompressedSolution#[:,0]#
-        savedata=savedata.reshape((numberOfNodes,3))# nbeOfComponentsPrimal))
-        
+        savedata=reconstructedCompressedSolution
+        savedata=savedata.reshape((numberOfNodes, nbeOfComponentsPrimal))
         VTKBase = MR.VTKReadmesh(meshFileName)
-        #SVTKW.numpyToVTKWrite(VTKBase,reconstructedCompressedSolution.reshape((numberOfNodes,3)),"NIRB_approximation_"+str(time)+"_"+str(nev)+".vtu")
         SVTKW.numpyToVTKWrite(VTKBase,savedata,"NIRB_approximation_"+str(time)+"_"+str(nev)+".vtu")
 
-        #SVTKW.numpyToVTKWrite(VTKBase,savedata,SolutionName="NIRB_approximation_"+str(time)+"_"+str(nev)+".vtu",FieldName="U")
         ##################################################
 
         
