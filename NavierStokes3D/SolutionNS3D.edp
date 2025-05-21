@@ -13,24 +13,26 @@ real H0=0.5;
 int Inlet=10;
 int ns=20;
 
-//mesh Th2=gmshload("marche.msh");
-//mesh Th22d=gmshload("ton_maillage_grossier.msh");//test_maillage_tres_grossier.msh");
+//mesh Th2=gmshload("test_maillage_fin.msh");
 mesh Th22d=gmshload("test_maillage_grossier.msh");
-//plot(Th22d,wait=1);
-//mesh Th22d=gmshload("marche.msh");
+
 fespace Pl22(Th22d,P0);
 Pl22 h22 = hTriangle;
 cout << "size of mesh = " << h22[].max << endl;
+
+//
 //coarse=5
 //fine=15
 //ref=30
-int nnL=max(2,5);//0);//5
+//
+
+
+int nnL=max(2,5);//coarse
 int[int] l1111 = [1, 1, 1, 1];
 int[int] l01 = [0, 1];
 int[int] l11 = [1, 1];
 //mesh3 Th2o = buildlayers(Th22d, nnL, zbound=[0., 0.12], labelmid=l11, labelup=l01, labeldown=l01);
 mesh3 Th2 = buildlayers(Th22d, nnL, zbound=[0., 1.], labelmid=l11, labelup=l01, labeldown=l01);
-savevtk("th2.vtu", Th2);
 fespace Pl2(Th2,P0);
 Pl2 h2 = hTriangle;
 cout << "size of mesh 2 = " << h2[].max << endl;
@@ -118,23 +120,3 @@ for (j=index;j<index+1;j++){
 	savevtk("snapshot_"+j+".vtu", Th2, [usnshh,vsnshh,wsnshh], dataname=DataName, order=Order);
 	Re+=15;nu=1./Re;
 }
-
-////OFFLINE////////
-
-//varf vGamma (u, v) = on(Inlet, u=1);
-//real[int] onGamma = vGamma(0, Ph2);
-//Ph2 ub=uIn;
-
-//testu[] = onGamma ? ub[]:0;
-
-///********************* LECTURE DES VITESSES *******************///
-
-//plot(coef=0.2,wait=true,[usnsh[i],vsnsh[i]],cmm=i ,value=1,fill=1);//,ps="solfinal.ps");
-//savevtk("Ltotuex_"+0+".vtu", Th, [usnsh[i],vsnsh[i]], dataname=DataName, order=Order);
-//savevtk("Ltotuapp_"+0+".vtu", Th2, [usnshh[i],vsnshh[i]], dataname=DataName, order=Order);
-
-
-
-//savevtk("Ltotuex_"+0+".vtu", Th2, [usnshh[i],vsnshh[i],wsnshh[i]], dataname=DataName, order=Order);
-//savevtk("Ltotuex_"+0+".vtu", Th2, [testu,testu,testu], dataname=DataName, order=Order);
-cout<<" Re "<<Re<<endl;
